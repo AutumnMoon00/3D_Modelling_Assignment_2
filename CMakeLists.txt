@@ -22,20 +22,24 @@ else()
     return()
 endif()
 
-find_package(Eigen3 3.1.0 QUIET)
+find_package(Eigen3 REQUIRED)
+
 include(CGAL_Eigen3_support)
 
 include_directories( ${CMAKE_SOURCE_DIR}/include/ )
 
 FILE(GLOB SRC_FILES src/*.cpp)
-add_executable(2 ${SRC_FILES} src/test.cpp src/json_to_obj.cpp src/volume_calc.cpp src/volume_conformation.cpp)
+add_executable(2 ${SRC_FILES} src/test.cpp src/json_to_obj.cpp src/Hemisphericality.cpp src/understanding_city_json.cpp src/compilation_v1.cpp)
 
 
 #add_executable(2 main.cpp)
 
 find_package( CGAL REQUIRED )
+#find_package(Eigen3 REQUIRED)
+find_package(Eigen3 3.1.0 QUIET)
 #find_package( CGAL Eigen3_support )
 
-target_link_libraries(${PROJECT_NAME} CGAL::CGAL)
+target_link_libraries(${PROJECT_NAME} CGAL::CGAL CGAL::Eigen3_support)
+
 #target_link_libraries(${PROJECT_NAME} CGAL::Eigen3_support )
 

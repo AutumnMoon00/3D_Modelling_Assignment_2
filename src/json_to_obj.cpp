@@ -15,7 +15,7 @@ void                enrich_and_save(std::string filename, json& j);
 
 //int main(int argc, const char * argv[]) {
 //    //-- will read the file passed as argument or 2b.city.json if nothing is passed
-//    const char* filename = (argc > 1) ? argv[1] : "../data/msol.city.json";
+//    const char* filename = (argc > 1) ? argv[1] : "../data/myfile.city.json";
 //    std::cout << "Processing: " << filename << std::endl;
 //    std::ifstream input(filename);
 //    json j;
@@ -23,7 +23,7 @@ void                enrich_and_save(std::string filename, json& j);
 //    input.close();
 //
 //    //-- convert each City Object in the file to OBJ and save to a file
-//    save2obj("../data/msol_out.obj", j);
+//    save2obj("../data/big.obj", j);
 //
 //    return 0;
 //}
@@ -40,7 +40,7 @@ void save2obj(std::string filename, const json& j) {
     //-- iterate over each object in the file and output the CDT
     for (auto& co : j["CityObjects"].items()) {
         for (auto& g : co.value()["geometry"]) {
-            if ( (g["type"] == "MultiSolid") && (g["lod"] == "1") ) {   //-- LoD1 only!!!!!
+            if ( (g["type"] == "Solid") && (g["lod"] == "2.2") ) {   //-- LoD1 only!!!!!
                 ofile << "o " << co.key() << std::endl;
                 std::cout << "o " << co.key() << std::endl;
                 std::cout << "number of boundaries: " << g["boundaries"].size() << std::endl;
@@ -48,18 +48,19 @@ void save2obj(std::string filename, const json& j) {
                     std::cout << "i: " << i << std::endl;
                     std::cout << "g[\"boundaries\": ]" << g["boundaries"][i] << std::endl;
                     // these next 4 lines are for multi solids
-                    for (int j = 0; j < g["boundaries"][i][0].size(); j++) {
-                        std::cout << "i: " << i << " j: " << j << std::endl;
-
-                        std::vector<std::vector<int>> gb = g["boundaries"][i][0][j];
-                        std::vector<std::vector<int>> trs = construct_ct_one_face(gb, lspts);
-
-                        // uncomment next lines for solid
-//                    for (int j = 0; j < g["boundaries"][i].size(); j++) {
+//                    for (int j = 0; j < g["boundaries"][i][0].size(); j++) {
 //                        std::cout << "i: " << i << " j: " << j << std::endl;
 //
-//                        std::vector<std::vector<int>> gb = g["boundaries"][i][j];
+//                        std::vector<std::vector<int>> gb = g["boundaries"][i][0][j];
 //                        std::vector<std::vector<int>> trs = construct_ct_one_face(gb, lspts);
+
+//                         uncomment next lines for solid
+                    for (int j = 0; j < g["boundaries"][i].size(); j++) {
+                        std::cout << "i: " << i << " j: " << j << std::endl;
+
+                        std::vector<std::vector<int>> gb = g["boundaries"][i][j];
+                        std::vector<std::vector<int>> trs = construct_ct_one_face(gb, lspts);
+
                         for (auto& tr : trs) {
                             ofile << "f " << (tr[0] + 1) << " " << (tr[1] + 1) << " " << (tr[2] + 1) << std::endl;
                             std::cout << "f " << (tr[0] + 1) << " " << (tr[1] + 1) << " " << (tr[2] + 1) << std::endl;
@@ -72,6 +73,36 @@ void save2obj(std::string filename, const json& j) {
     ofile.close();
     std::cout << "OBJ file written to disk: " << filename << std::endl;
 }
+
+// from hugo
+//void save2obj(std::string filename, const json& j) {
+//    std::ofstream ofile(filename);
+//    //-- fetch all the vertices in real-world coordinates (so "transform" is applied)
+//    std::vector<Point3> lspts = get_coordinates(j, true);
+//    for (auto& p : lspts) {
+//        ofile << std::setprecision(5) << std::fixed << "v " << p.x() << " " << p.y() << " " << p.z() << std::endl;
+//    }
+//    //-- iterate over each object in the file and output the CDT
+//    for (auto& co : j["CityObjects"].items()) {
+//        for (auto& g : co.value()["geometry"]) {
+//            if ( (g["type"] == "Solid") && (g["lod"] == "2.2") ) {   //-- LoD2.2 only!!!!!
+//                ofile << "o " << co.key() << std::endl;
+//                for (int i = 0; i < g["boundaries"].size(); i++) {
+//                    for (int j = 0; j < g["boundaries"][i].size(); j++) {
+//                        std::vector<std::vector<int>> gb = g["boundaries"][i][j];
+//                        std::vector<std::vector<int>> trs = construct_ct_one_face(gb, lspts);
+//                        for (auto& tr : trs) {
+//                            ofile << "f " << (tr[0] + 1) << " " << (tr[1] + 1) << " " << (tr[2] + 1) << std::endl;
+//                        }
+//                    }
+//                }
+//            }
+//        }
+//    }
+//    ofile.close();
+//    std::cout << "OBJ file written to disk: " << filename << std::endl;
+//}
+
 
 //-- add a new attribute "volume" to each City Object and assign a random value
 void enrich_and_save(std::string filename, json& j) {
