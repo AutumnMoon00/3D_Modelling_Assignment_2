@@ -29,7 +29,7 @@ include(CGAL_Eigen3_support)
 include_directories( ${CMAKE_SOURCE_DIR}/include/ )
 
 FILE(GLOB SRC_FILES src/*.cpp)
-add_executable(2 ${SRC_FILES} src/test.cpp src/json_to_obj.cpp src/Hemisphericality.cpp src/understanding_city_json.cpp src/compilation_v1.cpp)
+add_executable(2 ${SRC_FILES} src/json_to_obj.cpp src/compilation_v1.cpp)
 
 
 #add_executable(2 main.cpp)

@@ -15,7 +15,7 @@ void                enrich_and_save(std::string filename, json& j);
 
 //int main(int argc, const char * argv[]) {
 //    //-- will read the file passed as argument or 2b.city.json if nothing is passed
-//    const char* filename = (argc > 1) ? argv[1] : "../data/myfile.city.json";
+//    const char* filename = (argc > 1) ? argv[1] : "../data/2b.city.json";
 //    std::cout << "Processing: " << filename << std::endl;
 //    std::ifstream input(filename);
 //    json j;
@@ -23,7 +23,7 @@ void                enrich_and_save(std::string filename, json& j);
 //    input.close();
 //
 //    //-- convert each City Object in the file to OBJ and save to a file
-//    save2obj("../data/big.obj", j);
+//    save2obj("../data/2b.obj", j);
 //
 //    return 0;
 //}
@@ -130,24 +130,24 @@ void enrich_and_save(std::string filename, json& j) {
 //-- param translate is to use the translation in the "transform",
 //-- it can be put to false to make the coords smaller (and better for computations)
 
-std::vector<Point3> get_coordinates(const json& j, bool translate) {
-    std::vector<Point3> lspts;
-    std::vector<std::vector<int>> lvertices = j["vertices"];
-    if (translate) {
-        for (auto& vi : lvertices) {
-            double x = (vi[0] * j["transform"]["scale"][0].get<double>()) + j["transform"]["translate"][0].get<double>();
-            double y = (vi[1] * j["transform"]["scale"][1].get<double>()) + j["transform"]["translate"][1].get<double>();
-            double z = (vi[2] * j["transform"]["scale"][2].get<double>()) + j["transform"]["translate"][2].get<double>();
-            lspts.push_back(Point3(x, y, z));
-        }
-    } else {
-        //-- do not translate, useful to keep the values low for downstream processing of data
-        for (auto& vi : lvertices) {
-            double x = (vi[0] * j["transform"]["scale"][0].get<double>());
-            double y = (vi[1] * j["transform"]["scale"][1].get<double>());
-            double z = (vi[2] * j["transform"]["scale"][2].get<double>());
-            lspts.push_back(Point3(x, y, z));
-        }
-    }
-    return lspts;
-}
+//std::vector<Point3> get_coordinates(const json& j, bool translate) {
+//    std::vector<Point3> lspts;
+//    std::vector<std::vector<int>> lvertices = j["vertices"];
+//    if (translate) {
+//        for (auto& vi : lvertices) {
+//            double x = (vi[0] * j["transform"]["scale"][0].get<double>()) + j["transform"]["translate"][0].get<double>();
+//            double y = (vi[1] * j["transform"]["scale"][1].get<double>()) + j["transform"]["translate"][1].get<double>();
+//            double z = (vi[2] * j["transform"]["scale"][2].get<double>()) + j["transform"]["translate"][2].get<double>();
+//            lspts.push_back(Point3(x, y, z));
+//        }
+//    } else {
+//        //-- do not translate, useful to keep the values low for downstream processing of data
+//        for (auto& vi : lvertices) {
+//            double x = (vi[0] * j["transform"]["scale"][0].get<double>());
+//            double y = (vi[1] * j["transform"]["scale"][1].get<double>());
+//            double z = (vi[2] * j["transform"]["scale"][2].get<double>());
+//            lspts.push_back(Point3(x, y, z));
+//        }
+//    }
+//    return lspts;
+//}
