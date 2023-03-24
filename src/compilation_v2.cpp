@@ -134,29 +134,28 @@ void orientation_setter(json& g, std::map<int, Vertex>& vertices) {
     int surf_counter = 0; int searchValue = 1;
     for (auto& surf_value : g["semantics"]["values"][0]) {
         if (surf_value == 1) {
-//                        std::cout << "\t\t" << surf_value << std::endl;
             std::vector<Point3> Outer_ring_pt3;
             Plane best_fit_plane;
-            std::cout << "\t\tsurf oring size: " << g["boundaries"][0][surf_counter][0].size();
+//            std::cout << "\t\tsurf oring size: " << g["boundaries"][0][surf_counter][0].size();
             for (auto& oring_id : g["boundaries"][0][surf_counter][0]) {
                 Outer_ring_pt3.emplace_back(Point3 (vertices[oring_id].x, vertices[oring_id].y, vertices[oring_id].z));
             }
             CGAL::linear_least_squares_fitting_3(Outer_ring_pt3.begin(), Outer_ring_pt3.end(),
                                                  best_fit_plane, CGAL::Dimension_tag<0>());
-            std::cout << "\t\troof surf id: " << surf_counter << ": size: " << Outer_ring_pt3.size() << std::endl;
-            std::cout << "\t\t\ta, b, c, d: " << best_fit_plane << std::endl;
+//            std::cout << "\t\troof surf id: " << surf_counter << ": size: " << Outer_ring_pt3.size() << std::endl;
+//            std::cout << "\t\t\ta, b, c, d: " << best_fit_plane << std::endl;
             K::Vector_3 normal = best_fit_plane.orthogonal_vector();
-            std::cout << "\t\t\tnormal: " << normal << std::endl;
+//            std::cout << "\t\t\tnormal: " << normal << std::endl;
             if (normal.z() < 0) {
-                std::cout << "\t\t\tNORMAL IS INVERTED" << std::endl;
+//                std::cout << "\t\t\tNORMAL IS INVERTED" << std::endl;
                 normal = normal * -1;
-                std::cout << "\t\t\tnew normal: " << normal << std::endl;
+//                std::cout << "\t\t\tnew normal: " << normal << std::endl;
             }
             std::pair<double, double> elevation_azimuth = roof_elevation_azimuth(normal);
             double roof_elevation = elevation_azimuth.first;
             double roof_azimuth = elevation_azimuth.second;
-            std::cout << "\t\t\troof_elevation: " << roof_elevation << std::endl;
-            std::cout << "\t\t\troof azimuth: " << roof_azimuth << std::endl;
+//            std::cout << "\t\t\troof_elevation: " << roof_elevation << std::endl;
+//            std::cout << "\t\t\troof azimuth: " << roof_azimuth << std::endl;
             if (roof_elevation == 0.0)
                 g["semantics"]["values"][0][surf_counter] = 12;
             else if (0 <= roof_azimuth && roof_azimuth < 45)  // northeast
@@ -327,7 +326,7 @@ std::pair<double, double> SurfArea_Volume_Object(std::map<int, Face>& faces, std
 }
 
 //std::vector<double>
-void Rectangularity(double& volume_object, std::map<int, Face>& faces, std::map<int, Vertex>& vertices) {
+double Rectangularity(double& volume_object, std::map<int, Face>& faces, std::map<int, Vertex>& vertices) {
     std::vector<int> checker;
     std::vector<Point3> object_points_3d;
     for (auto& [key, face] : faces) {
@@ -365,12 +364,19 @@ void Rectangularity(double& volume_object, std::map<int, Face>& faces, std::map<
                   pow(obb_pts[5].z() - obb_pts[0].z(), 2)), 0.5);
     double vol_oobb = length * width * height;
 
-    std::cout << "length: " << length << std::endl;
-    std::cout << "width: " << width << std::endl;
-    std::cout << "height: " << height << std::endl;
+    std::cout << "\tlength: " << length << std::endl;
+    std::cout << "\twidth: " << width << std::endl;
+    std::cout << "\theight: " << height << std::endl;
 
-    double rectangularity = vol_oobb / volume_object;
+    double rectangularity = volume_object / vol_oobb;
+    return rectangularity;
+}
 
+
+double Hemisphericality(const double& volume_object, const double& surface_area_object) {
+    double hemisphericality;
+    hemisphericality = (3.0 * pow(2.0 * M_PI, 0.5) ) * volume_object / pow(surface_area_object, 1.5);
+    return hemisphericality;
 }
 
 
@@ -382,14 +388,14 @@ int main(int argc, const char * argv[]) {
     std::map<int, Face> faces;
 
     // Reading the json file to check the number of objects
-    const char* injson = (argc > 1) ? argv[1] : "../data/tetra.city.json";
+    const char* injson = (argc > 1) ? argv[1] : "../data/2b.city.json";
     std::ifstream input(injson);
     json j;
     input >> j; //-- store the content of the file in a nlohmann::json object
     input.close();
 
     //outfile
-    std::string outfile = "../output/tetra.obj";
+    std::string outfile = "../output/2b.obj";
     std::ofstream ofile(outfile);
 
     // storing the vertices
@@ -411,7 +417,7 @@ int main(int argc, const char * argv[]) {
         faces.clear();
         int f = 1;  // starting face ids from 1 for every new object
         for (auto &g: co.value()["geometry"]) {
-            if ((g["type"] == "Solid") && (g["lod"] == "1")) {   //-- LoD2.2 only!!!!!
+            if ((g["type"] == "Solid") && (g["lod"] == "2.2")) {   //-- LoD2.2 only!!!!!
                 ofile << "o " << co.key() << std::endl;
 //                std::cout << "o " << co.key() << std::endl;
                 std::cout << "\tnum of boundaries: " << g["boundaries"][0].size() << std::endl;
@@ -442,9 +448,13 @@ int main(int argc, const char * argv[]) {
         std::pair<double, double> surf_area_volume = SurfArea_Volume_Object(faces, vertices);
         double surface_area_object = surf_area_volume.first;
         double volume_object = surf_area_volume.second;
+        double rectangularity_object = Rectangularity(volume_object, faces, vertices);
+        double hemisphericality = Hemisphericality(volume_object, surface_area_object);
+
         std::cout << "\tvolume of object: " << volume_object << std::endl;
         std::cout << "\tarea of object: " << surface_area_object << std::endl;
-        Rectangularity(volume_object, faces, vertices);
+        std::cout << "\trectangularity of object: " << rectangularity_object << std::endl;
+        std::cout << "\themisphericality of object: " << hemisphericality << std::endl;
 
     }
 
