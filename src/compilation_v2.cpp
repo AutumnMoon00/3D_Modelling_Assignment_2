@@ -8,6 +8,7 @@
 #include <random>
 #include <cmath>
 #include <CGAL/Random.h>
+#include <typeinfo>
 
 #include "definitions.h"
 #include "geomtools.h"
@@ -136,26 +137,28 @@ void orientation_setter(json& g, std::map<int, Vertex>& vertices) {
         if (surf_value == 1) {
             std::vector<Point3> Outer_ring_pt3;
             Plane best_fit_plane;
-//            std::cout << "\t\tsurf oring size: " << g["boundaries"][0][surf_counter][0].size();
+            std::cout << "\t\tsurf oring size: " << g["boundaries"][0][surf_counter][0].size();
             for (auto& oring_id : g["boundaries"][0][surf_counter][0]) {
-                Outer_ring_pt3.emplace_back(Point3 (vertices[oring_id].x, vertices[oring_id].y, vertices[oring_id].z));
+                json result = oring_id.get<int>() + 1;
+                Outer_ring_pt3.emplace_back(Point3 (vertices[result].x, vertices[result].y, vertices[result].z));
             }
             CGAL::linear_least_squares_fitting_3(Outer_ring_pt3.begin(), Outer_ring_pt3.end(),
                                                  best_fit_plane, CGAL::Dimension_tag<0>());
-//            std::cout << "\t\troof surf id: " << surf_counter << ": size: " << Outer_ring_pt3.size() << std::endl;
-//            std::cout << "\t\t\ta, b, c, d: " << best_fit_plane << std::endl;
+            std::cout << "\t\troof surf id: " << surf_counter << ": size: " << Outer_ring_pt3.size() << std::endl;
+            std::cout << "\t\t\ta, b, c, d: " << best_fit_plane << std::endl;
             K::Vector_3 normal = best_fit_plane.orthogonal_vector();
-//            std::cout << "\t\t\tnormal: " << normal << std::endl;
+            std::cout << "\t\t\tnormal: " << normal << std::endl;
             if (normal.z() < 0) {
-//                std::cout << "\t\t\tNORMAL IS INVERTED" << std::endl;
+                std::cout << "\t\t\tNORMAL IS INVERTED" << std::endl;
                 normal = normal * -1;
-//                std::cout << "\t\t\tnew normal: " << normal << std::endl;
+                std::cout << "\t\t\tnew normal: " << normal << std::endl;
             }
             std::pair<double, double> elevation_azimuth = roof_elevation_azimuth(normal);
             double roof_elevation = elevation_azimuth.first;
             double roof_azimuth = elevation_azimuth.second;
-//            std::cout << "\t\t\troof_elevation: " << roof_elevation << std::endl;
-//            std::cout << "\t\t\troof azimuth: " << roof_azimuth << std::endl;
+            std::cout << "\t\t\troof_elevation: " << roof_elevation << std::endl;
+            std::cout << "\t\t\troof azimuth: " << roof_azimuth << std::endl;
+
             if (roof_elevation == 0.0)
                 g["semantics"]["values"][0][surf_counter] = 12;
             else if (0 <= roof_azimuth && roof_azimuth < 45)  // northeast
@@ -174,6 +177,11 @@ void orientation_setter(json& g, std::map<int, Vertex>& vertices) {
                 g["semantics"]["values"][0][surf_counter] = 10;
             else if (315 <= roof_azimuth && roof_azimuth < 360)  // northwest
                 g["semantics"]["values"][0][surf_counter] = 11;
+
+            std::cout << "\t\t\torientation: " << g["semantics"]["values"][0][surf_counter] << std::endl;
+            int orient = g["semantics"]["values"][0][surf_counter];
+            std::cout << "\t\t\troof orientation: " << g["semantics"]["surfaces"][orient] << std::endl;
+//            std::cout << "\t\t\troof orientation: " << g["semantics"]["surfaces"][g["semantics"]["values"][0][surf_counter]] << std::endl;
 
         }
         surf_counter++;
@@ -373,6 +381,82 @@ double Rectangularity(double& volume_object, std::map<int, Face>& faces, std::ma
 }
 
 
+double Roughness_Index(double& volume_object, double& surface_area_object, std::map<int, Face>& faces, std::map<int, Vertex>& vertices) {
+    std::vector<Point3> object_points;
+    std::vector<int> v_checker;
+    int count_rand_pts = 1;  // random points per face
+    int num_randPts_per_face = 3;
+    std::vector<Point3> sample_pts_on_surface;
+    CGAL::Random rand;
+    std::map<Point3, double> face_centroid_area;  // face centroid point3, and its area
+    for (auto& [key, face] : faces ) {
+        double cent_x = 0, cent_y = 0, cent_z = 0;
+        for (auto& vert_coor : face.v3_coors) {
+            auto it = std::find(object_points.begin(), object_points.end(), vert_coor);
+            if (it == object_points.end()) {
+                // Element does not exist, add it to the vector
+                object_points.emplace_back(vert_coor);
+                sample_pts_on_surface.emplace_back(vert_coor);
+            }
+            cent_x += vert_coor.x(); cent_y += vert_coor.y(); cent_z += vert_coor.z();
+        }
+
+        cent_x = cent_x/3.0; cent_y = cent_y/3.0; cent_z = cent_z/3.0;
+        Point3 centroid_face (cent_x, cent_y, cent_z);
+        double face_area = Area_Calc(face, vertices);
+        face_centroid_area[centroid_face] = face_area;
+//        std::cout << "\t\tface centroid: " << centroid_face << std::endl;
+//        std::cout << "\t\tface area: " << face_centroid_area[centroid_face] << std::endl;
+
+
+        // best fitting plane and 3 projected vertices a, b, c on to best_FP
+        Plane best_FP;
+        CGAL::linear_least_squares_fitting_3(face.v3_coors.begin(), face.v3_coors.end(), best_FP,
+                                             CGAL::Dimension_tag<0>());
+        Point2 a = best_FP.to_2d(face.v3_coors[0]);
+        Point2 b = best_FP.to_2d(face.v3_coors[1]);
+        Point2 c = best_FP.to_2d(face.v3_coors[2]);
+
+        for (int rand_pt = 0; rand_pt < num_randPts_per_face; rand_pt++) {
+            double r1 = std::sqrt(rand.get_double());
+            double r2 = rand.get_double();
+            Point2 p((1 - r1) * a.x() + (r1 * (1 - r2)) * b.x() + (r1 * r2) * c.x(),
+                     (1 - r1) * a.y() + (r1 * (1 - r2)) * b.y() + (r1 * r2) * c.y());
+            Point3 p_in3d{best_FP.to_3d(p)};  // projecting the sample point inside the triangle back to 3D
+            sample_pts_on_surface.emplace_back(p_in3d);
+        }
+    }
+
+    double object_centroid_x = 0, object_centroid_y = 0, object_centroid_z = 0;
+    double total_area = 0;
+    for (auto& [cent_pt3, tri_area] : face_centroid_area) {
+        object_centroid_x += cent_pt3.x() * tri_area;
+        object_centroid_y += cent_pt3.y() * tri_area;
+        object_centroid_z += cent_pt3.z() * tri_area;
+        total_area += tri_area;
+    }
+
+    Point3 Object_Centriod (object_centroid_x/total_area, object_centroid_y/total_area, object_centroid_z/total_area);
+
+    double samples_dist {0}, dist {0}, squared_dist {0};
+    int i {1};
+    for (auto& surf_pt : sample_pts_on_surface) {
+        squared_dist =  pow(Object_Centriod.x()-surf_pt.x(), 2) +
+                        pow(Object_Centriod.y()-surf_pt.y(), 2) +
+                        pow(Object_Centriod.z()-surf_pt.z(), 2);
+        dist = pow(squared_dist, 0.5);
+        samples_dist += dist;
+//        std::cout << "sample dist " << i << ": " << dist << std::endl;
+        i++;
+    }
+
+    double mu {samples_dist/sample_pts_on_surface.size()};
+    double rid = 48.735 * pow(mu, 3) / (volume_object + pow(surface_area_object, 1.5));
+    return rid;
+
+}
+
+
 double Hemisphericality(const double& volume_object, const double& surface_area_object) {
     double hemisphericality;
     hemisphericality = (3.0 * pow(2.0 * M_PI, 0.5) ) * volume_object / pow(surface_area_object, 1.5);
@@ -394,7 +478,7 @@ int main(int argc, const char * argv[]) {
     input >> j; //-- store the content of the file in a nlohmann::json object
     input.close();
 
-    //outfile
+    //output object file
     std::string outfile = "../output/2b.obj";
     std::ofstream ofile(outfile);
 
@@ -425,16 +509,19 @@ int main(int argc, const char * argv[]) {
                     for (int j = 0; j < g["boundaries"][i].size(); j++) {
                         std::vector<std::vector<int>> gb = g["boundaries"][i][j];
                         std::vector<std::vector<int>> trs = construct_ct_one_face(gb, lspts);
-                        for (auto& tr : trs) {
+                        for (auto &tr: trs) {
                             ofile << "f " << (tr[0] + 1) << " " << (tr[1] + 1) << " " << (tr[2] + 1) << std::endl;
 //                            std::cout << "f " << (tr[0] + 1) << " " << (tr[1] + 1) << " " << (tr[2] + 1) << std::endl;
                             faces[f].fid = f;
                             faces[f].tri_vertices.emplace_back(tr[0] + 1);
                             faces[f].tri_vertices.emplace_back(tr[1] + 1);
                             faces[f].tri_vertices.emplace_back(tr[2] + 1);
-                            faces[f].v3_coors.emplace_back(Point3 (vertices[tr[0] + 1].x, vertices[tr[0] + 1].y, vertices[tr[0] + 1].z));
-                            faces[f].v3_coors.emplace_back(Point3 (vertices[tr[1] + 1].x, vertices[tr[1] + 1].y, vertices[tr[1] + 1].z));
-                            faces[f].v3_coors.emplace_back(Point3 (vertices[tr[2] + 1].x, vertices[tr[2] + 1].y, vertices[tr[2] + 1].z));
+                            faces[f].v3_coors.emplace_back(
+                                    Point3(vertices[tr[0] + 1].x, vertices[tr[0] + 1].y, vertices[tr[0] + 1].z));
+                            faces[f].v3_coors.emplace_back(
+                                    Point3(vertices[tr[1] + 1].x, vertices[tr[1] + 1].y, vertices[tr[1] + 1].z));
+                            faces[f].v3_coors.emplace_back(
+                                    Point3(vertices[tr[2] + 1].x, vertices[tr[2] + 1].y, vertices[tr[2] + 1].z));
                             f++;
                         }
                     }
@@ -442,22 +529,51 @@ int main(int argc, const char * argv[]) {
 
                 orientation_setter(g, vertices);
 
+                std::pair<double, double> surf_area_volume = SurfArea_Volume_Object(faces, vertices);
+                double surface_area_object = surf_area_volume.first;
+                double volume_object = surf_area_volume.second;
+                double rectangularity_object = Rectangularity(volume_object, faces, vertices);
+                double hemisphericality_object = Hemisphericality(volume_object, surface_area_object);
+                double roughness_index_object = Roughness_Index(volume_object, surface_area_object, faces, vertices);
+
+                std::cout << "\tvolume of object: " << volume_object << std::endl;
+                std::cout << "\tarea of object: " << surface_area_object << std::endl;
+                std::cout << "\trectangularity of object: " << rectangularity_object << std::endl;
+                std::cout << "\themisphericality of object: " << hemisphericality_object << std::endl;
+                std::cout << "\troughness index of object: " << roughness_index_object << std::endl;
+
+                std::cout << "\ttype id of object name: " << typeid(co.key()).name() << std::endl;
+                std::string parent_obj_name = co.value()["parents"][0];
+                std::cout << "\tparent name: " << parent_obj_name << std::endl;
+
+                j["CityObjects"][parent_obj_name]["attributes"]["Volume"] = volume_object;
+                j["CityObjects"][parent_obj_name]["attributes"]["Rectangularity"] = rectangularity_object;
+                j["CityObjects"][parent_obj_name]["attributes"]["Hemisphericality"] = hemisphericality_object;
+                j["CityObjects"][parent_obj_name]["attributes"]["RoughnessIndex"] = roughness_index_object;
+
+                std::cout << "parent volume: " << j["CityObjects"][co.key().substr(0, co.key().size() - 2)]["attributes"]["Volume"] << std::endl;
             }
+
         }
-
-        std::pair<double, double> surf_area_volume = SurfArea_Volume_Object(faces, vertices);
-        double surface_area_object = surf_area_volume.first;
-        double volume_object = surf_area_volume.second;
-        double rectangularity_object = Rectangularity(volume_object, faces, vertices);
-        double hemisphericality = Hemisphericality(volume_object, surface_area_object);
-
-        std::cout << "\tvolume of object: " << volume_object << std::endl;
-        std::cout << "\tarea of object: " << surface_area_object << std::endl;
-        std::cout << "\trectangularity of object: " << rectangularity_object << std::endl;
-        std::cout << "\themisphericality of object: " << hemisphericality << std::endl;
-
     }
 
     ofile.close();
+
+    std::string out_json_name = "../output/2b_updated.city.json";
+    std::ofstream o(out_json_name);
+    o << j.dump(2) << std::endl;
+    o.close();
+
+    std::cout << "=========================================" << std::endl;
+    for (auto& co : j["CityObjects"].items()) {
+        std::cout << "\nCity Object - " << ": " << co.key() << std::endl;
+//        std::cout << "\tsemantics: " << co.value() << std::endl;
+        std::cout << "\tvolume: " << co.value()["attributes"]["Volume"] << std::endl;
+        std::cout << "\tRectangularity: " << co.value()["attributes"]["Rectangularity"] << std::endl;
+        std::cout << "\tHemisphericality: " << co.value()["attributes"]["Hemisphericality"] << std::endl;
+        std::cout << "\tRoughnessIndex: " << co.value()["attributes"]["RoughnessIndex"] << std::endl;
+        std::cout << "\tOrientations: " << co.value()["geometry"][0]["semantics"]["values"];
+    }
+
     return 0;
 }
